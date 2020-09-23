@@ -35,11 +35,11 @@
 # bugs
 #   intended bugs
 #       The generated live kit is targeted for a storageless computer with NAS companion.
-#       It does not need a proper shutdown mechanism to gracefully umount everything.
-#       No data modification will be preserved after shutdown or reboot.
+#       There is no persistent storage.
+#       Also, it does not need a proper shutdown mechanism to gracefully umount everything.
 #   unintended bugs
 #       You should run this code in a "normal" linux instance. Running in a live kit linux would not work.
-#       Due to hard-coded paths in "02_build_initramfs", this code is likely to fail on non-X86-64 non-Debian derived linux distros.
+#       This code is likely to fail on non-X86-64 non-Debian derived linux distros due to hard-coded paths in "02_build_initramfs".
 #
 #
 # dir_hierarchy
