@@ -1,0 +1,47 @@
+#!/bin/sh
+
+# syslinux_isolinux
+
+this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "${this_abs_dir}" || exit 1
+
+
+func_build_boot()
+{
+    myfn="../boot_iso_bybrid.iso"
+
+    genisoimage \
+        -quiet \
+        -r \
+        -J \
+        -T \
+        -iso-level 2 \
+        \
+        -no-emul-boot \
+        -boot-load-size 4 \
+        -boot-info-table \
+        -b boot/syslinux/isolinux.bin \
+        -c boot/syslinux/boot.cat \
+        \
+        \
+        -o "${myfn}" \
+        -m ./payload_unused \
+        . \
+        || exit 1
+        #-eltorito-alt-boot \
+        #-eltorito-boot boot/syslinux/boot_hdd_uefi.fat32 \
+
+
+    isohybrid "${myfn}" || exit 1
+    #isohybrid --uefi "${myfn}" || exit 1
+}
+
+func_main()
+{
+    func_build_boot || exit 1
+
+    echo "done $0"
+}
+
+func_main "$@"
+

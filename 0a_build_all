@@ -1,0 +1,18 @@
+#!/bin/sh -eu
+
+this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "${this_abs_dir}" || exit 1
+
+
+func_main()
+{
+#   ./01_prepare
+    ./02_build_initramfs
+#   ./03_build_root
+    ./04_build_package
+
+    echo "done $0"
+}
+
+func_main "$@"
+

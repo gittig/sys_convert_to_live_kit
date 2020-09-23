@@ -1,0 +1,134 @@
+#!/bin/sh
+
+# syslinux_extlinux
+
+this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "${this_abs_dir}" || exit 1
+
+
+# verified working on loop based file disks
+func_partition_bios_ext4()
+{
+    mydev="$1"
+
+    sudo mkfs.ext4 "${mydev}"                                   || exit 1
+    sudo mkfs.vfat -F 32 "${mydev}"                             || exit 1
+    sudo mount "${mydev}"   /mnt/                               || exit 1
+    sudo cp -r ./*          /mnt/                               || exit 1
+    sudo extlinux --install /mnt/                               || exit 1
+    sudo umount             /mnt/                               || exit 1
+}
+
+# verified working on USB derives
+func_partition_bios_fat32()
+{
+    mydev="$1"
+
+    sudo mkfs.vfat -F 32 "${mydev}"                             || exit 1
+    sudo mount "${mydev}"   /mnt/                               || exit 1
+    sudo cp -r ./*          /mnt/                               || exit 1
+    sudo extlinux --install /mnt/                               || exit 1
+    sudo umount             /mnt/                               || exit 1
+}
+
+# verified working on loop based file disks and USB drives
+func_partition_uefi()
+{
+    mydev="$1"
+
+    sudo parted "${mydev}" mklabel gpt                          || exit 1
+    sudo parted "${mydev}" mkpart primary fat32 1MiB   110MiB   || exit 1
+    sudo parted "${mydev}" mkpart primary ext4  110MiB 100%     || exit 1
+    sudo parted "${mydev}" set 1 boot on                        || exit 1
+    sudo parted "${mydev}" print
+
+    mydevp1="$(ls "$1"*1)"
+    mydevp2="$(ls "$1"*2)"
+
+    sudo mkfs.vfat -F 32 "${mydevp1}"                           || exit 1
+    sudo mkfs.ext4       "${mydevp2}"                           || exit 1
+
+    sudo mount "${mydevp1}" /mnt/                               || exit 1
+    sudo cp -r ./*          /mnt/                               || exit 1
+    sudo umount             /mnt/                               || exit 1
+
+    # not needed for default entry "/efi/boot/bootx64.efi"
+    #sudo efibootmgr \
+    #    --create \
+    #    --disk "${mydev}"p1 \
+    #    --part 1 \
+    #    --loader /efi/boot/bootx64.efi \
+    #    --label "syslinux" \
+    #    || exit 1
+}
+
+# bios seems not working
+# uefi works, verified working on loop based file disks and USB drives
+func_partition_dual_bios_uefi()
+{
+    mydev="$1"
+    func_partition_uefi "${mydev}"
+
+    mydevp1="$(ls "$1"*1)"
+    sudo mount "${mydevp1}" /mnt/                               || exit 1
+    sudo extlinux --install /mnt/                               || exit 1
+    sudo umount             /mnt/                               || exit 1
+}
+
+func_build_boot()
+{
+    option=2
+
+    case "${option}" in
+    0)
+        myfn="../boot_hdd_bios.ext4"
+        mysz=30
+        myapp=func_partition_bios_ext4
+        ;;
+    1)
+        myfn="../boot_hdd_bios.fat32"
+        mysz=30
+        myapp=func_partition_bios_fat32
+        ;;
+    2)
+        myfn="../boot_hdd_uefi.fat32"
+        mysz=120
+        myapp=func_partition_uefi
+        ;;
+    3)
+        myfn="../boot_hdd_dual_bios_uefi.fat32"
+        mysz=120
+        myapp=func_partition_dual_bios_uefi
+        ;;
+    *)
+        echo "bad option. exit."
+        exit 1
+        ;;
+    esac
+
+    if [ "$#" = "1" ]; then
+        if [ -b "$1" ]; then
+            sudo wipefs -a "$1"
+            "${myapp}" "$1"                                         || exit 1
+        else
+            echo "wrong device. exit"
+            exit 1
+        fi
+    else
+        sudo dd if=/dev/zero of="${myfn}" bs=1M count="${mysz}"     || exit 1
+        myloop="$(sudo losetup -f)"
+        sudo losetup "${myloop}" "${myfn}"                          || exit 1
+        "${myapp}" "${myloop}"                                      || exit 1
+        sudo losetup -d "${myloop}"                                 || exit 1
+    fi
+}
+
+func_main()
+{
+    func_build_boot "$@" || exit 1
+
+    echo "done $0"
+}
+
+func_main "$@"
+

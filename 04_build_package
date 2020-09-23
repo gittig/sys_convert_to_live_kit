@@ -1,0 +1,157 @@
+#!/bin/sh
+
+# this code is statically linked with lib_sh
+
+func_check_file_general_exist()
+{
+    if [ ! -e "$1" ]; then
+        echo "file $1 not found. exit."
+        exit 1
+    fi
+}
+
+
+this_link="$(basename "$0")"
+this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
+dir_target=/tmp/"${this_link}"_safdsdfcdsweacSAFDWE
+
+
+func_build_syslinux_bad()
+{
+    (
+    cd /tmp/
+    wget https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.xz
+    tar xf syslinux-6.03.tar.xz
+    cd syslinux-6.03
+    make
+    )
+}
+
+func_build_package()
+{
+    func_check_file_general_exist /usr/lib/ISOLINUX/isolinux.bin
+    func_check_file_general_exist /usr/lib/syslinux/modules/bios/ldlinux.c32
+
+    func_check_file_general_exist /tmp/syslinux.efi
+    func_check_file_general_exist /tmp/ldlinux.e64
+#   func_check_file_general_exist /usr/lib/syslinux/modules/efi64/ldlinux.e64
+
+#   func_check_file_general_exist /usr/lib/syslinux/mbr/mbr.bin
+#   func_check_file_general_exist /usr/lib/syslinux/mbr/gptmbr.bin
+
+    func_check_file_general_exist /usr/lib/syslinux/memdisk
+
+    func_check_file_general_exist /vmlinuz
+    func_check_file_general_exist /tmp/initramfs.cpio.gz
+#   func_check_file_general_exist /tmp/root.squashfs
+    func_check_file_general_exist "${this_abs_dir}"/05a_build_boot_hdd
+    func_check_file_general_exist "${this_abs_dir}"/05b_build_boot_iso
+
+
+    rm -rf   "${dir_target}"
+    mkdir -p "${dir_target}"/payload_misc
+    mkdir -p "${dir_target}"/payload_0
+    mkdir -p "${dir_target}"/boot/syslinux
+    mkdir -p "${dir_target}"/efi/boot
+
+
+    cp -f \
+        /usr/lib/syslinux/memdisk \
+        "${dir_target}"/payload_misc/ \
+        ;
+
+    cp -f \
+        /vmlinuz \
+        /tmp/initramfs.cpio.gz \
+        "${dir_target}"/payload_0/ \
+        ;
+#       /tmp/root.squashfs
+    cp -f "${this_abs_dir}"/05a_build_boot_hdd  "${dir_target}"/
+    cp -f "${this_abs_dir}"/05b_build_boot_iso  "${dir_target}"/
+
+
+    cp -f \
+        /usr/lib/ISOLINUX/isolinux.bin \
+        /usr/lib/syslinux/modules/bios/ldlinux.c32 \
+        "${dir_target}"/boot/syslinux/ \
+        ;
+
+    cp -f \
+        /tmp/syslinux.efi \
+        /tmp/ldlinux.e64 \
+        "${dir_target}"/efi/boot/ \
+        ;
+    (
+    cd "${dir_target}"/efi/boot/ || exit 1
+    mv syslinux.efi bootx64.efi
+    )
+
+
+    args_kernel=""
+    args_kernel="${args_kernel} load_ramdisk=1 prompt_ramdisk=0"
+    args_kernel="${args_kernel} printk.time=0"
+    args_kernel="${args_kernel} apparmor=0"
+    args_kernel="${args_kernel} rw"                                 # mount root device read-write on boot
+    args_kernel="${args_kernel} net.ifnames=0 biosdevname=0"        # change the defualt NIC name from "enp4s0"-alike to eth0
+    #args_kernel="${args_kernel} myflag0=1"
+    #args_kernel="${args_kernel} myflag1=1"
+    #args_kernel="${args_kernel} myflag2=1"
+
+    #### initramfs /init example
+    # cat /proc/cmdline | grep "\<myflag0=1\>" 2> /dev/null 1>&2
+    # rv="$?"
+    # if [ "${rv}" = 0 ]; then
+    #   echo "flag0 is enabled"
+    # fi
+
+    cat << EOF > "${dir_target}"/boot/syslinux/syslinux.cfg
+SAY *** press Tab to show labels ***
+TIMEOUT     100
+PROMPT      0
+DEFAULT     l0
+
+LABEL l0
+    KERNEL  /payload_0/vmlinuz
+    APPEND  initrd=/payload_0/initramfs.cpio.gz ${args_kernel}
+#
+#LABEL l1
+#    KERNEL  /payload_0/vmlinuz
+#    APPEND  initrd=/payload_0/initramfs.cpio.gz ${args_kernel} debug
+#
+#LABEL ipxe
+#    KERNEL  /payload_misc/ipxe.exe
+#
+#LABEL memtest86+
+#    KERNEL  /payload_misc/memtest.exe
+#
+#LABEL iso0
+#    KERNEL  /payload_misc/memdisk
+#    APPEND  initrd=/payload_misc/Core-current.iso iso
+#
+#LABEL hdd0.iso
+#    KERNEL  /payload_misc/memdisk
+#    APPEND  initrd=/payload_misc/a.iso
+#
+#LABEL hdd1.raw.gz
+#    KERNEL  /payload_misc/memdisk
+#    APPEND  initrd=/payload_misc/m0.shrink3026M.raw.gz
+#
+#LABEL hdd2.raw
+#    KERNEL  /payload_misc/memdisk
+#    APPEND  initrd=/payload_misc/m0.shrink3026M.raw
+EOF
+
+#DEFAULT l3
+
+    cp "${dir_target}"/boot/syslinux/syslinux.cfg "${dir_target}"/efi/boot/syslinux.cfg
+}
+
+func_main()
+{
+    func_build_package
+
+    echo "done $0"
+}
+
+func_main "$@"
+

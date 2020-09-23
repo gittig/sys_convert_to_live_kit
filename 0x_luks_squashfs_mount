@@ -1,0 +1,28 @@
+#!/bin/sh -x
+
+# do not set "-e" flag
+
+this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "${this_abs_dir}" || exit 1
+
+mymount="/m1"
+mylayer0="${mymount}"/layer0_squashfs
+myfn1="./root.squashfs.luks"
+myfn1_enc="$(basename "${myfn}")_enc"
+
+
+func_main()
+{
+    if [ ! -f "${myfn1}" ]; then
+        echo "${myfn1} not found. exit."
+        exit 1
+    fi
+
+    cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
+    mount /dev/mapper/"${myfn1_enc}" "${mylayer0}"  || exit 1
+
+    echo "done $0"
+}
+
+func_main "$@"
+

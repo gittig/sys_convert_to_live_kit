@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# bugs
+#   these settings cause /usr/bin/xz to be excluded from the archive
+#   -comp xz \
+#   -comp xz -Xdict-size 100% \
+
+func_build_root()
+{
+    sudo \
+    rm /tmp/root.squashfs
+
+    sudo \
+    mksquashfs \
+        /bin /sbin /lib* /usr /etc /var /opt /root /home \
+        /tmp/root.squashfs \
+        -e ~/mnt \
+        -e ~/ramfs \
+        -b 1024K \
+        -always-use-fragments \
+        -keep-as-directory \
+        ;
+}
+
+func_main()
+{
+    func_build_root
+
+    echo "done $0"
+}
+
+func_main "$@"
+

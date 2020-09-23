@@ -1,0 +1,36 @@
+#!/bin/sh
+
+func_prepare_host_debian()
+{
+    sudo apt-get update
+    sudo apt-get install -y \
+        squashfs-tools \
+        aufs-tools \
+        \
+        syslinux-common \
+        syslinux-utils \
+        isolinux \
+        extlinux \
+        \
+        genisoimage \
+        ;
+
+    sudo modprobe aufs squashfs
+
+    sudo apt-get autoremove -y
+    sudo apt-get clean
+}
+
+func_main()
+{
+    grep 'NAME="Debian GNU/Linux"' /etc/os-release 2> /dev/null 1>&2
+    rv="$?"
+    if [ "${rv}" != "0" ]; then
+        exit 1
+    fi
+
+    func_prepare_host_debian
+}
+
+func_main "$@"
+

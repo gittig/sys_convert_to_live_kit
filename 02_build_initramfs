@@ -1,0 +1,240 @@
+#!/bin/sh
+
+# this code is statically linked with lib_sh
+
+func_check_file_general_exist()
+{
+    if [ ! -e "$1" ]; then
+        echo "file $1 not found. exit."
+        exit 1
+    fi
+}
+
+func_run_self_by_root()
+{
+    if [ "$(id -u)" != "0" ]; then
+        sudo "$(cd "$(dirname "$0")" && pwd)"/"$(basename "$0")" "$@"
+    else
+        :
+    fi
+}
+
+
+this_link="$(basename "$0")"
+this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
+#cd "${this_abs_dir}" || exit 1
+
+dir_kernel_modules=/lib/modules/"$(uname -r)"       # kernel .ko modules, can be different in some distros
+dir_target=/tmp/"${this_link}"_safdsdfcdsweacSAFDWE
+
+func_check_file_general_exist /tmp/busybox
+func_check_file_general_exist "${this_abs_dir}"/0x_init
+#func_check_file_general_exist "${this_abs_dir}"/0x_etc_profile
+if [ "$(id -u)" != "0" ]; then
+    func_run_self_by_root "$@"
+    exit "$?"
+fi
+
+
+func_copy_deps()
+{
+    for src in "$@"; do
+#       echo "copy src1 ${src}" >> "${dir_target}"/LOG # for debug
+
+        if [ ! -e "${src}" ]; then
+            return
+        elif [ -e "${dir_target}"/"${src}" ]; then
+            return
+        else
+            cp -r --parents "${src}" "${dir_target}"
+#           echo "copy src2 ${src}" >> "${dir_target}"/LOG # for debug
+        fi
+
+        ldd "${src}" 2>/dev/null | sed -r "s/.*=>|[(].*//g" | sed -r "s/^\\s+|\\s+\$//" | while read s; do
+            func_copy_deps "${s}"
+        done
+
+        if [ -L "${src}" ]; then
+            mydir="$(dirname "${src}")"
+            mylink="$(readlink "${src}")"
+            mylink_abs="$(cd "${mydir}" && realpath -s "${mylink}")"
+#           echo "copy link ${src} ${mylink} ${mylink_abs}" >> "${dir_target}"/LOG # for debug
+            func_copy_deps "${mylink_abs}"
+
+#           func_copy_deps "$(readlink -f "${src}")"   # this does not work
+        fi
+
+        for mod in $(find "${src}" -type f -name "*.ko"); do
+            mod_s="/$(basename "${mod}"):"
+            for dep in $(grep "${mod_s}" "${dir_kernel_modules}"/modules.dep); do
+                func_copy_deps ""${dir_kernel_modules}"/"${dep}""
+            done
+        done
+    done
+}
+
+func_install_0()
+{
+    (
+    cd "${dir_target}" || exit 1
+    mkdir -p dev etc mnt proc root run sys tmp usr var/log
+    for mydir in usr/bin usr/sbin usr/lib usr/lib32 usr/lib64 usr/libx32; do
+        mkdir -p "${mydir}"
+        ln -sf "${mydir}"
+    done
+    )
+
+    echo "root::0:0::/root:/bin/bash" > "${dir_target}"/etc/passwd
+    touch "${dir_target}"/etc/fstab
+    touch "${dir_target}"/etc/mtab
+
+    mknod "${dir_target}"/dev/console c 5 1
+    mknod "${dir_target}"/dev/null    c 1 3
+    mknod "${dir_target}"/dev/ram0    b 1 0
+    mknod "${dir_target}"/dev/tty1    c 4 1
+    mknod "${dir_target}"/dev/tty2    c 4 2
+    mknod "${dir_target}"/dev/tty3    c 4 3
+    mknod "${dir_target}"/dev/tty4    c 4 4
+}
+
+func_install_modules()
+{
+    func_copy_deps /usr/sbin/cryptsetup*
+    func_copy_deps /usr/lib/x86_64-linux-gnu/libgcc_s.so.1                  # cryptsetup dependency
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/md/dm-mod.ko      # cryptsetup dependency
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/md/dm-crypt.ko    # cryptsetup dependency
+    func_copy_deps "${dir_kernel_modules}"/kernel/crypto                    # not sure, but add them all
+
+
+    # crc32c is needed for ext4, but I don't know which one, add them all, they are small
+    find "${dir_kernel_modules}"/kernel/ -name "*crc32c*" | while read s; do
+        func_copy_deps "${s}"
+    done
+
+    func_copy_deps "${dir_kernel_modules}"/kernel/fs/ext2
+    func_copy_deps "${dir_kernel_modules}"/kernel/fs/ext3
+    func_copy_deps "${dir_kernel_modules}"/kernel/fs/ext4
+    func_copy_deps "${dir_kernel_modules}"/kernel/fs/isofs
+    func_copy_deps "${dir_kernel_modules}"/kernel/fs/squashfs
+    func_copy_deps "${dir_kernel_modules}"/kernel/fs/aufs
+
+    # loop
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/block/loop.*
+
+    # usb
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/usb/storage/usb-storage.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/usb/host
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/usb/common
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/usb/core
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/hid/usbhid
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/hid/hid.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/hid/uhid.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/hid/hid-generic.*
+
+    # disk and cdrom
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/cdrom
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/scsi/sr_mod.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/scsi/sd_mod.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/scsi/scsi_mod.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/scsi/sg.*
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/ata
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/nvme
+    func_copy_deps "${dir_kernel_modules}"/kernel/drivers/mmc
+
+    # ethernet
+#   func_copy_deps "${dir_kernel_modules}"/kernel/drivers/net/ethernet
+
+
+    # copy all custom-built modules
+    func_copy_deps "${dir_kernel_modules}"/updates
+    func_copy_deps "${dir_kernel_modules}"/modules.*
+
+
+    find "${dir_target}" -name "*.ko.gz" -exec gunzip {} \;
+
+
+    # trim modules.order file. Perhaps we could remove it entirely
+    #MODULEORDER="$(cd "${dir_target}""${dir_kernel_modules}"/; find -name "*.ko" | sed -r "s:^./::g" | tr "\n" "|" | sed -r "s:[.]:.:g")"
+    #cat "${dir_target}""${dir_kernel_modules}"/modules.order | sed -r "s/.ko.gz\$/.ko/" | grep -E "$MODULEORDER"/foo/bar > "${dir_target}""${dir_kernel_modules}"/_
+    #mv "${dir_target}""${dir_kernel_modules}"/_ "${dir_target}""${dir_kernel_modules}"/modules.order
+
+    (
+    cd "${dir_target}""${dir_kernel_modules}"/ || exit 1
+    sed "s/.ko.gz\$/.ko/" modules.order | while read s; do
+        #echo "${s}"
+        if [ -e "${s}" ]; then
+            echo "${s}" >> fn1
+        fi
+    done
+    mv -f fn1 modules.order
+    )
+
+    depmod -b "${dir_target}" "$(uname -r)"
+}
+
+func_build_busybox()
+{
+    (
+    ver="1.32.0"
+    wget https://busybox.net/downloads/busybox-"${ver}".tar.bz2     || exit 1
+    tar xf busybox-"${ver}".tar.bz2                                 || exit 1
+    cd busybox-"${ver}"/                                            || exit 1
+    make defconfig                                                  || exit 1
+    LDFLAGS="--static" make -j "$(nproc)"                           || exit 1
+    cp ./busybox /tmp/busybox                                       || exit 1
+    )
+}
+
+func_install_busybox()
+{
+    cp /tmp/busybox                         "${dir_target}"/bin/busybox
+    chmod a+x                               "${dir_target}"/bin/*
+
+    "${dir_target}"/bin/busybox | grep , | grep -v Copyright | tr "," " " | while read s; do
+        for tool in ${s}; do
+            ln -sf busybox "${dir_target}"/bin/"${tool}"
+        done
+    done
+}
+
+func_install_dotfiles()
+{
+    rm -f                                   "${dir_target}"/sbin/init
+    rm -f                                   "${dir_target}"/bin/init
+
+    cp -f "${this_abs_dir}"/0x_init         "${dir_target}"/init
+    chmod a+x                               "${dir_target}"/init
+    ln -s ../init                           "${dir_target}"/bin/init
+
+#   cp -f "${this_abs_dir}"/0x_etc_profile  "${dir_target}"/etc/profile
+}
+
+func_build_cpio()
+{
+    (
+    cd "${dir_target}" || exit 1
+    find . -print                       \
+        | cpio -o -H newc 2>/dev/null   \
+        | gzip                          \
+        > /tmp/initramfs.cpio.gz        \
+        ;
+    )
+}
+
+func_main()
+{
+    rm -rf "${dir_target}"
+    mkdir -p "${dir_target}"
+
+    func_install_0
+    func_install_modules
+    func_install_busybox
+    func_install_dotfiles
+    func_build_cpio
+#   rm -rf "${dir_target}"
+
+    echo "done $0"
+}
+
+func_main "$@"
+

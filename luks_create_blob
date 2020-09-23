@@ -1,0 +1,100 @@
+#!/bin/sh
+
+#. func_check_os_match.sh            || exit 1
+#. func_check_file_exist.sh          || exit 1
+
+#func_check_os_match Linux
+
+
+func_usage()
+{
+    appname="$(basename "$1")"
+    cat << EOF
+Usage:
+    ${appname} -h
+    ${appname}             INPUT_FILE
+    ${appname} -k KEY_FILE INPUT_FILE
+EOF
+}
+
+func_run()
+{
+    myoffset_512B=32768
+    myfn="$1"
+    myfn_enc="$(basename "${myfn}")_enc"
+    myloop="$(sudo losetup -f)"
+
+#   func_check_file_exist "${myfn}"
+
+    mysz1_512B="$(ls -l --block-size=512 "${myfn}" | cut -d " " -f 5)"
+    mysz2_512B="$(echo "${mysz1_512B} + ${myoffset_512B}" | bc)"
+    echo "${mysz1_512B}"
+    echo "${mysz2_512B}"
+
+    dd if=/dev/zero of="${myfn}".luks bs=512 count="${mysz2_512B}"
+    sudo losetup "${myloop}" "${myfn}".luks                                     || exit 1
+
+    if [ "${flag_k}" = "0" ]; then
+        myargs="--type luks2 --cipher aes-xts-plain64 --key-size 256 --verbose --verify-passphrase"
+        sudo cryptsetup ${myargs} luksFormat "${myloop}"                        || exit 1
+        sudo cryptsetup open "${myloop}" "${myfn_enc}"                          || exit 1
+    else
+        myargs="--type luks2 --cipher aes-xts-plain64 --key-size 256 --hash sha512 --key-file ${arg_k}"
+        echo "YES" | sudo cryptsetup ${myargs} luksFormat "${myloop}"           || exit 1
+        sudo cryptsetup open --key-file "${arg_k}" "${myloop}" "${myfn_enc}"    || exit 1
+    fi
+
+    sudo dd if="${myfn}" of=/dev/mapper/"${myfn_enc}"
+
+
+    a1="$(sudo blockdev --getsize "${myloop}")"
+    a2="$(sudo blockdev --getsize /dev/mapper/"${myfn_enc}")"
+    echo "${a1}"
+    echo "${a2}"
+    echo "${a1} - ${a2}" | bc   # should be 32768
+
+
+    sudo cryptsetup close "${myfn_enc}"                                         || exit 1
+    sudo losetup -d "${myloop}"                                                 || exit 1
+}
+
+func_main()
+{
+    flag_k=0
+    arg_k=""
+    options_short=hk:
+
+    OPTIND=1
+    while getopts "${options_short}" opt; do
+        case "${opt}" in
+            h)
+                func_usage "$0"
+                exit 0
+                ;;
+            k)
+                flag_k=1
+                arg_k="${OPTARG}"
+                ;;
+            *)
+                echo "exit on illegal options"
+                func_usage "$0"
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
+    [ "$1" = "--" ] && shift
+
+
+    if [ "$#" != "1" ]; then
+        func_usage "$0"
+        exit 1
+    else
+        func_run "$1"
+    fi
+
+
+}
+
+func_main "$@"
+
