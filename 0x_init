@@ -14,7 +14,7 @@ func_0()
         mount -t tmpfs tmpfs "${mymount}"/  || exit 1
 
         ls /                                            \
-            | grep -v "${mymount}"                      \
+            | grep -v "^${mymount}$"                    \
             | xargs -n 1 -I {} cp -a "{}" "${mymount}"  \
             2> /dev/null                                \
             ;
