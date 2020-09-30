@@ -118,6 +118,7 @@ func_2()
                     return 0
                 else
                     mount "${myfn}"               "${mylayer0}"/    || exit 1
+                    return 0
                 fi
             else
                 umount /mnt/                                        || exit 1
