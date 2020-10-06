@@ -20,8 +20,8 @@ func_main()
     fi
 
     cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
-    dd if=/dev/mapper/"${myfn1_enc}" of="${myfn2}"  || exit 1
-    cryptsetup close           "${myfn1_enc}"       || exit 1
+    dd if=/dev/mapper/"${myfn1_enc}" of="${myfn2}"  || exit 1   # "status=progress" is not available in busybox dd
+    cryptsetup close "${myfn1_enc}"                 || exit 1
     mount "${myfn2}" "${mylayer0}"                  || exit 1
 
     echo "done $0"

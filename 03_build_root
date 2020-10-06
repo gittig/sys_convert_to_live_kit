@@ -1,24 +1,39 @@
 #!/bin/sh
 
+# this code is statically linked with lib_sh
+
 # bugs
 #   these settings cause /usr/bin/xz to be excluded from the archive
 #   -comp xz \
 #   -comp xz -Xdict-size 100% \
 
+func_check_user_not_root()
+{
+    if [ "$(id -u)" = "0" ]; then
+        echo "this script should not run by root. exit."
+        exit 1
+    fi
+}
+
+func_check_user_not_root
+
+
 func_build_root()
 {
-    sudo \
-    rm /tmp/root.squashfs
-
-    sudo \
-    mksquashfs \
+    myfn="/tmp/root.squashfs"
+    sudo rm "${myfn}"
+    sudo mksquashfs                 \
         /bin /sbin /lib* /usr /etc /var /opt /root /home \
-        /tmp/root.squashfs \
-        -e ~/mnt \
-        -e ~/ramfs \
-        -b 1024K \
-        -always-use-fragments \
-        -keep-as-directory \
+        "${myfn}"                   \
+                                    \
+        -e ~/mnt                    \
+        -e ~/ramfs                  \
+        -e ~/.local/share/ranger    \
+        -e ~/.local/share/zathura   \
+                                    \
+        -b 1024K                    \
+        -always-use-fragments       \
+        -keep-as-directory          \
         ;
 }
 

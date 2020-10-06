@@ -4,7 +4,7 @@
 
 this_link="$0"
 
-# switch root from initramfs to ramfs
+# switch root from initramfs to ramfs, required by pivot_root system call.
 func_0()
 {
     if [ ! -e /done_0 ]; then
@@ -33,11 +33,10 @@ func_1()
     ln -sf /proc/mounts /etc/mtab
 
 
-    #modprobe zram       2> /dev/null
-    #modprobe loop       2> /dev/null
-    #modprobe squashfs   2> /dev/null
-    #modprobe fuse       2> /dev/null
-    #modprobe aufs       2> /dev/null
+#   modprobe loop       2> /dev/null
+#   modprobe squashfs   2> /dev/null
+#   modprobe fuse       2> /dev/null
+#   modprobe aufs       2> /dev/null
 
     find /lib/modules/ -name "*.ko"         \
         | sed "s/.ko$//"                    \
@@ -50,8 +49,8 @@ func_1()
     if [ -r /proc/sys/kernel/hotplug ]; then
         echo /sbin/mdev > /proc/sys/kernel/hotplug
     fi
-    sleep 1
-    mdev -s
+#   sleep 1
+#   mdev -s
 
     touch /done_1
 }
@@ -79,9 +78,13 @@ func_break()
     cat << EOF
 # option: mount in place, auto
     * run "exec /init auto"
+    or
+    * run "exec /init auto_luks"
 
 # option: copy to RAM, auto
     * run "exec /init auto_toram"
+    or
+    * run "exec /init auto_luks_toram"
 
 # option: mount in place, manual
     * mount the storage (useful commands: "mdev -s" "blkid")
@@ -102,28 +105,64 @@ EOF
 # copy root data automatically
 func_2()
 {
-    flag_toram="$1"
+    myarg="$1"
     func_dir
-
-    myfn="/mnt/payload_0/root.squashfs"
+    mdev -s
 
     for myblk in $(blkid | grep -v "^/dev/loop" | cut -d ":" -f 1); do
         mount -o ro "${myblk}" /mnt/
-        if [ "$?" = "0" ]; then
-            if [ -f "${myfn}" ]; then
-                if [ "${flag_toram}" = "1" ]; then
-                    cp "${myfn}" "${mymount}"/root.squashfs         || exit 1
-                    umount /mnt/                                    || exit 1
-                    mount "${mymount}"/root.squashfs "${mylayer0}"/ || exit 1
-                    return 0
-                else
-                    mount "${myfn}"               "${mylayer0}"/    || exit 1
-                    return 0
-                fi
-            else
-                umount /mnt/                                        || exit 1
-            fi
+        if [ "$?" != "0" ]; then
+            continue
         fi
+
+        case "${myarg}" in
+        auto)
+            myfn1="/mnt/payload_0/root_declassified.squashfs"
+            if [ -f "${myfn1}" ]; then
+                mount "${myfn1}" "${mylayer0}"/                 || exit 1
+                return 0
+            fi
+            ;;
+        auto_toram)
+            myfn1="/mnt/payload_0/root_declassified.squashfs"
+            myfn2="${mymount}"/root_declassified.squashfs
+            if [ -f "${myfn1}" ]; then
+                cp "${myfn1}" "${myfn2}"                        || exit 1
+                umount /mnt/                                    || exit 1
+                mount "${myfn2}" "${mylayer0}"/                 || exit 1
+                return 0
+            fi
+            ;;
+        auto_luks)
+            myfn1="/mnt/payload_0/root.squashfs.luks"
+            myfn1_enc="$(basename "${myfn1}")_enc"
+            if [ -f "${myfn1}" ]; then
+                cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
+                mount /dev/mapper/"${myfn1_enc}" "${mylayer0}"  || exit 1
+                return 0
+            fi
+            ;;
+        auto_luks_toram)
+            myfn1="/mnt/payload_0/root.squashfs.luks"
+            myfn1_enc="$(basename "${myfn1}")_enc"
+            myfn2="${mymount}"/root.squashfs
+            if [ -f "${myfn1}" ]; then
+                cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
+                dd if=/dev/mapper/"${myfn1_enc}" of="${myfn2}"  || exit 1
+                cryptsetup close "${myfn1_enc}"                 || exit 1
+                umount /mnt/                                    || exit 1
+                mount "${myfn2}" "${mylayer0}"                  || exit 1
+                return 0
+            fi
+            ;;
+        *)
+            echo "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+            echo "wrong arg."
+            exec sh
+            ;;
+        esac
+
+        umount /mnt/                                            || exit 1
     done
 
     echo "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
@@ -153,11 +192,11 @@ func_3()
 
 
     cat << EOF > ./etc/fstab
-aufs    /           aufs    defaults 0 0
-proc    /proc       proc    defaults 0 0
-sysfs   /sys        sysfs   defaults 0 0
-devpts  /dev/pts    devpts  gid=5,mode=620 0 0
-tmpfs   /dev/shm    tmpfs   defaults 0 0
+aufs    /           aufs    defaults        0 0
+proc    /proc       proc    defaults        0 0
+sysfs   /sys        sysfs   defaults        0 0
+devpts  /dev/pts    devpts  gid=5,mode=620  0 0
+tmpfs   /dev/shm    tmpfs   defaults        0 0
 EOF
 
     mkdir -p boot dev proc sys tmp media mnt run
@@ -187,23 +226,19 @@ func_main()
     if [ -e /fullauto ]; then       # fullauto workflow
         func_0
         func_1
-        func_2 0
+        func_2 auto
         func_3
-    elif [ ! -e /done_break ]; then # manual workflow, 1st stage
+    elif [ ! -e /done_break ]; then # semi-automatic workflow, 1st stage
         func_0
         func_1
         func_break
-    else                            # manual workflow, 2nd stage
+    else                            # semi-automatic workflow, 2nd stage
         case "$1" in
-        "auto")
-            func_2 0
+        auto|auto_toram|auto_luks|auto_luks_toram)
+            func_2 "$1"
             func_3
             ;;
-        "auto_toram")
-            func_2 1
-            func_3
-            ;;
-        "continue")
+        continue)
             func_3
             ;;
         *)

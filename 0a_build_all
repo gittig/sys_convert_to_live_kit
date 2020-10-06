@@ -8,7 +8,7 @@ func_main()
 {
 #   ./01_prepare
     ./02_build_initramfs
-#   ./03_build_root
+    ./03_build_root
     ./04_build_package
 
     echo "done $0"

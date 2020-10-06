@@ -19,7 +19,7 @@ func_partition_bios_ext4()
     sudo umount             /mnt/                               || exit 1
 }
 
-# verified working on USB derives
+# verified working on USB drives
 func_partition_bios_fat32()
 {
     mydev="$1"
@@ -108,7 +108,7 @@ func_build_boot()
 
     if [ "$#" = "1" ]; then
         if [ -b "$1" ]; then
-            sudo wipefs -a "$1"
+            sudo wipefs -a -f "$1"
             "${myapp}" "$1"                                         || exit 1
         else
             echo "wrong device. exit"

@@ -14,7 +14,6 @@ func_build_boot()
         -quiet \
         -r \
         -J \
-        -T \
         -iso-level 2 \
         \
         -no-emul-boot \
@@ -28,12 +27,13 @@ func_build_boot()
         -m ./payload_unused \
         . \
         || exit 1
-        #-eltorito-alt-boot \
-        #-eltorito-boot boot/syslinux/boot_hdd_uefi.fat32 \
+#       -eltorito-alt-boot \
+#       -eltorito-boot boot/syslinux/boot_hdd_uefi.fat32 \
+#       -T \                   # generating TRANS.TBL, not needed on modern systems
 
 
     isohybrid "${myfn}" || exit 1
-    #isohybrid --uefi "${myfn}" || exit 1
+#   isohybrid --uefi "${myfn}" || exit 1
 }
 
 func_main()
