@@ -3,7 +3,7 @@
 #
 # tools
 #   initramfs       cpio.gz
-#   root            squashfs + tmpfs + aufs
+#   root            squashfs + luks + tmpfs + aufs
 #   bootloader      syslinux
 #
 #
@@ -17,14 +17,9 @@
 #
 #
 # procedures of building a live kit
-#   1. build a statically linked busybox, and copy it as "/tmp/busybox".
-#   2. locate "ldlinux.e64" from syslinux release package, and copy it as "/tmp/ldlinux.e64". It seems missing from the Debian package repo.
-#   3. locate "syslinux.efi" from syslinux release package, and copy it as "/tmp/syslinux.efi". It seems missing from the Debian package repo.
-#   4. ./01_prepare
-#   5. ./02_build_initramfs
-#   6. ./03_build_root
-#   7. ./04_build_package
-#   8. cd /tmp/04_build_package_safdsdfcdsweacSAFDWE/ && ./05b_build_boot_iso
+#   1. ./00_prepare
+#   2. ./0a_build_all
+#   3. cd /tmp/0a_build_all.d/ && ./0y_build_boot_iso
 #
 #
 # bugs
@@ -35,6 +30,9 @@
 #   unintended bugs
 #       You should run this code in a "normal" linux instance. Running in a live kit linux would not work.
 #       This code is likely to fail on non-X86-64 non-Debian linux due to hard-coded paths in "02_build_initramfs".
+#       wrong permissions
+#           drwxrwxrwt /
+#           drwxrwxrwt /initramfs
 #
 #
 # dir_hierarchy

@@ -1,15 +1,59 @@
 #!/bin/sh -eu
 
+# this code is statically linked with lib_sh
+
+func_check_file_general_exist()
+{
+    if [ ! -e "$1" ]; then
+        echo "file $1 not found. exit."
+        exit 1
+    fi
+}
+
 this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "${this_abs_dir}" || exit 1
+this_link="$(basename "$0")"
+dir_target=/tmp/"${this_link}".d
 
 
 func_main()
 {
-#   ./01_prepare
+    func_check_file_general_exist ./00_prepare
+    func_check_file_general_exist ./01_build_kernel
+    func_check_file_general_exist ./02_build_initramfs
+    func_check_file_general_exist ./03_build_root
+    func_check_file_general_exist ./04_build_bootloader
+
+    cp -rf ./blob/* /tmp/   # binary blobs: busybox, syslinux ...
+#   ./00_prepare
+    ./01_build_kernel
     ./02_build_initramfs
     ./03_build_root
-    ./04_build_package
+    ./04_build_bootloader
+
+    func_check_file_general_exist /tmp/01_build_kernel.d/vmlinuz
+    func_check_file_general_exist /tmp/02_build_initramfs.d/initramfs.cpio.gz
+#   func_check_file_general_exist /tmp/03_build_root.d/root.squashfs
+    func_check_file_general_exist /tmp/04_build_bootloader.d
+
+    rm -rf   "${dir_target}"
+    mkdir -p "${dir_target}"
+    mkdir -p "${dir_target}"/payload_0
+
+    cp -f                                               \
+        /tmp/01_build_kernel.d/vmlinuz                  \
+        /tmp/02_build_initramfs.d/initramfs.cpio.gz     \
+        "${dir_target}"/payload_0/                      \
+        ;
+#       /tmp/03_build_root.d/root.squashfs              \
+    cp -rf                                              \
+        /tmp/04_build_bootloader.d/*                    \
+        "${dir_target}"/                                \
+        ;
+    cp -f                                               \
+        "${this_abs_dir}"/0y_*                          \
+        "${dir_target}"/                                \
+        ;
 
     echo "done $0"
 }

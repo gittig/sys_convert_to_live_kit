@@ -7,11 +7,15 @@ this_link="$0"
 # switch root from initramfs to ramfs, required by pivot_root system call.
 func_0()
 {
-    if [ ! -e /done_0 ]; then
-        touch /done_0
+    if [ ! -e /boot_done_func_0 ]; then
+        touch /boot_done_func_0
         mymount="m0"
-        mkdir -p "${mymount}"               || exit 1
-        mount -t tmpfs tmpfs "${mymount}"/  || exit 1
+        mkdir -p "${mymount}"                            || exit 1
+
+        # the default tmpfs size is 50% RAM size
+        # it constrains the maxium size of squashfs root image to be loaded into RAM
+#       mount -t tmpfs -o size="80%" tmpfs "${mymount}"/ || exit 1
+        mount -t tmpfs               tmpfs "${mymount}"/ || exit 1
 
         ls /                                            \
             | grep -v "^${mymount}$"                    \
@@ -52,7 +56,7 @@ func_1()
 #   sleep 1
 #   mdev -s
 
-    touch /done_1
+    touch /boot_done_func_1
 }
 
 func_dir()
@@ -67,48 +71,50 @@ func_dir()
     mkdir -p "${myunion}"
 }
 
-
-# break, and prompt to copy root data
-func_break()
+func_prompt()
 {
-    func_dir
-    touch /done_break
-
     echo ""
     cat << EOF
-# option: mount in place, auto
+# option: auto, mount in place
     * run "exec /init auto"
-    or
+
+# option: auto, copy to RAM
+    * run "exec /init auto_toram"
+
+# option: auto, mount in place, with luks encryption
     * run "exec /init auto_luks"
 
-# option: copy to RAM, auto
-    * run "exec /init auto_toram"
-    or
+# option: auto, copy to RAM, with luks encryption
     * run "exec /init auto_luks_toram"
 
-# option: mount in place, manual
+# option: manual, mount in place
     * mount the storage (useful commands: "mdev -s" "blkid")
     * mount root data to "${mylayer0}"/
-    * run "exec /init contiue"
+    * run "exec /init manual"
 
-# option: copy to RAM, manual
+# option: manual, copy to RAM
     * mount the storage (useful commands: "mdev -s" "blkid")
     * copy root data to  "${mymount}"/
     * mount root data to "${mylayer0}"/
     * unmount the storage
-    * run "exec /init contiue"
+    * run "exec /init manual"
 EOF
     echo ""
-    exec sh
 }
 
-# copy root data automatically
-func_2()
+# load root data
+func_load_root()
 {
     myarg="$1"
     func_dir
-    mdev -s
 
+    if [ "${myarg}" = "manual" ]; then
+        func_prompt
+        exec sh
+    fi
+
+    sleep 1
+    mdev -s
     for myblk in $(blkid | grep -v "^/dev/loop" | cut -d ":" -f 1); do
         mount -o ro "${myblk}" /mnt/
         if [ "$?" != "0" ]; then
@@ -181,7 +187,7 @@ func_3()
         exec sh
     fi
 
-    mount -t tmpfs tmpfs                                            "${mylayer1}"/  || exit 1
+    mount -t tmpfs -o size="80%" tmpfs                              "${mylayer1}"/  || exit 1 # the size of the live kit's rootfs
     mount -t aufs -o br:"${mylayer1}"=rw,br:"${mylayer0}"=ro none   "${myunion}"/   || exit 1
 
     umount /proc
@@ -200,7 +206,6 @@ tmpfs   /dev/shm    tmpfs   defaults        0 0
 EOF
 
     mkdir -p boot dev proc sys tmp media mnt run
-#   mkdir -p /media/initramfs
     mkdir -p initramfs
     chmod 1777 tmp
 
@@ -211,35 +216,36 @@ EOF
     if [ ! -e ./dev/null ];         then mknod ./dev/null    c 1 3; fi
     if [ ! -e ./sbin/fsck.aufs ];   then ln -s /bin/true ./sbin/fsck.aufs; fi
 
-#   mount -t tmpfs      tmpfs       ./run
-#   pivot_root          .           ./media/initramfs
-    pivot_root          .           ./initramfs
+    pivot_root . ./initramfs
 
     if [ ! -e ./sbin/chroot ];  then exit 1; fi
     if [ ! -e ./sbin/init   ];  then exit 1; fi
     exec ./sbin/chroot . ./sbin/init < dev/console > dev/console 2>&1
 }
 
+func_parse_cmdline()
+{
+    cat "$1" | grep "\<myflag_auto=1\>"            > /dev/null && echo "auto"            && return 0
+    cat "$1" | grep "\<myflag_auto_toram=1\>"      > /dev/null && echo "auto_toram"      && return 0
+    cat "$1" | grep "\<myflag_auto_luks=1\>"       > /dev/null && echo "auto_luks"       && return 0
+    cat "$1" | grep "\<myflag_auto_luks_toram=1\>" > /dev/null && echo "auto_luks_toram" && return 0
+                                                                  echo "manual"          && return 0
+}
+
 func_main()
 {
-#   touch /fullauto
-    if [ -e /fullauto ]; then       # fullauto workflow
+    if [ ! -e /boot_cmdline ]; then             # 1st stage
         func_0
-        func_1
-        func_2 auto
-        func_3
-    elif [ ! -e /done_break ]; then # semi-automatic workflow, 1st stage
-        func_0
-        func_1
-        func_break
-    else                            # semi-automatic workflow, 2nd stage
+        func_1                                  # mounts procfs, and provides /proc/cmdline
+        cp /proc/cmdline /boot_cmdline          # cmdline is only available in the current process
+        func_load_root "$(func_parse_cmdline /boot_cmdline)"
+    else                                        # 2nd stage, for manual workflow
         case "$1" in
         auto|auto_toram|auto_luks|auto_luks_toram)
-            func_2 "$1"
-            func_3
+            func_load_root "$1"
             ;;
-        continue)
-            func_3
+        manual)
+            :
             ;;
         *)
             echo "wrong arg"
@@ -247,6 +253,8 @@ func_main()
             ;;
         esac
     fi
+
+    func_3
 
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     echo "the code should not reach here"

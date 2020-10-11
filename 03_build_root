@@ -16,11 +16,13 @@ func_check_user_not_root()
 }
 
 func_check_user_not_root
+this_link="$(basename "$0")"
+dir_target=/tmp/"${this_link}".d
 
 
 func_build_root()
 {
-    myfn="/tmp/root.squashfs"
+    myfn="${dir_target}/root.squashfs"
     sudo rm "${myfn}"
     sudo mksquashfs                 \
         /bin /sbin /lib* /usr /etc /var /opt /root /home \
@@ -39,6 +41,9 @@ func_build_root()
 
 func_main()
 {
+    rm -rf   "${dir_target}"
+    mkdir -p "${dir_target}"
+
     func_build_root
 
     echo "done $0"

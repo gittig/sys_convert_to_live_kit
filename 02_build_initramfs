@@ -19,17 +19,16 @@ func_run_self_by_root()
     fi
 }
 
-
-this_link="$(basename "$0")"
 this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
 #cd "${this_abs_dir}" || exit 1
-
 dir_kernel_modules=/lib/modules/"$(uname -r)"       # kernel .ko modules, can be different in some distros
-dir_target=/tmp/"${this_link}"_safdsdfcdsweacSAFDWE
+this_link="$(basename "$0")"
+dir_target=/tmp/"${this_link}".d
 
 func_check_file_general_exist /tmp/busybox
 func_check_file_general_exist "${this_abs_dir}"/0x_init
 #func_check_file_general_exist "${this_abs_dir}"/0x_etc_profile
+
 if [ "$(id -u)" != "0" ]; then
     func_run_self_by_root "$@"
     exit "$?"
@@ -141,9 +140,8 @@ func_install_modules()
     func_copy_deps "${dir_kernel_modules}"/kernel/drivers/nvme
     func_copy_deps "${dir_kernel_modules}"/kernel/drivers/mmc
 
-    # ethernet
+    # ethernet, PXE dependency
 #   func_copy_deps "${dir_kernel_modules}"/kernel/drivers/net/ethernet
-
 
     # copy all custom-built modules
     func_copy_deps "${dir_kernel_modules}"/updates
@@ -181,6 +179,7 @@ func_build_busybox()
     cd busybox-"${ver}"/                                            || exit 1
     make defconfig                                                  || exit 1
     LDFLAGS="--static" make -j "$(nproc)"                           || exit 1
+    strip --strip-all ./busybox                                     || exit 1
     cp ./busybox /tmp/busybox                                       || exit 1
     )
 }
@@ -206,6 +205,7 @@ func_install_dotfiles()
     chmod a+x                               "${dir_target}"/init
     ln -s ../init                           "${dir_target}"/bin/init
 
+    cp -f "${this_abs_dir}"/0x_*            "${dir_target}"/
 #   cp -f "${this_abs_dir}"/0x_etc_profile  "${dir_target}"/etc/profile
 }
 
@@ -213,12 +213,21 @@ func_build_cpio()
 {
     (
     cd "${dir_target}" || exit 1
-    find . -print                       \
+    find                                \
+        .                               \
+        -print                          \
         | cpio -o -H newc 2>/dev/null   \
-        | gzip                          \
+        | gzip -9                       \
         > /tmp/initramfs.cpio.gz        \
         ;
+    mv /tmp/initramfs.cpio.gz .
     )
+#       -not -path "./tmp/*"            \
+#       -not -path "./proc/*"           \
+#       -not -path "./sys/*"            \
+#       -not -path "./dev/*"            \
+#       -not -path "./run/*"            \
+#       -not -path "./var/run/*"        \
 }
 
 func_main()
@@ -231,7 +240,6 @@ func_main()
     func_install_busybox
     func_install_dotfiles
     func_build_cpio
-#   rm -rf "${dir_target}"
 
     echo "done $0"
 }

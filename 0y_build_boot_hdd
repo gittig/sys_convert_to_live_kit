@@ -12,7 +12,6 @@ func_partition_bios_ext4()
     mydev="$1"
 
     sudo mkfs.ext4 "${mydev}"                                   || exit 1
-    sudo mkfs.vfat -F 32 "${mydev}"                             || exit 1
     sudo mount "${mydev}"   /mnt/                               || exit 1
     sudo cp -r ./*          /mnt/                               || exit 1
     sudo extlinux --install /mnt/                               || exit 1
