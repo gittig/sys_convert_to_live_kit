@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #. func_check_os_match.sh            || exit 1
-#. func_make_xdg_temp_file_dryrun.sh || exit 1
+#. func_make_xdg_temp_.sh            || exit 1
 
 #func_check_os_match Linux
 
@@ -11,18 +11,17 @@ this_link="$(basename "$0")"
 func_run()
 {
 #   myfn="$(func_make_xdg_temp_file_dryrun "${this_link}")"
-    myfn=/tmp/ugvyugs547gsjvgsffsyrfdaa
+    myfn=/tmp/sdfsdffwfef34sdfwfdwefewfoi3uf9834fsdcsc34fdwf
     myfn_enc="$(basename "${myfn}")_enc"
     myloop="$(sudo losetup -f)"
-    #myargs="--type luks2 --cipher aes-xts-plain64 --key-size 256 --verbose --verify-passphrase"
     myargs="--type luks2 --cipher aes-xts-plain64 --key-size 256 --verbose"
     mypassphrase="bevIw4DZ2BMsBDcrxF9nNaPMP0W8dW9RCD"       # just used for this script, not confidential
 
     dd if=/dev/zero of="${myfn}" bs=1M count=23
     sudo losetup "${myloop}" "${myfn}"                                          || exit 1
 
-    echo "{mypassphrase}" | sudo cryptsetup ${myargs} luksFormat "${myloop}"    || exit 1
-    echo "{mypassphrase}" | sudo cryptsetup open "${myloop}" "${myfn_enc}"      || exit 1
+    echo "${mypassphrase}" | sudo cryptsetup ${myargs} luksFormat "${myloop}"   || exit 1
+    echo "${mypassphrase}" | sudo cryptsetup open "${myloop}" "${myfn_enc}"     || exit 1
 
     a1="$(sudo blockdev --getsize "${myloop}")"
     a2="$(sudo blockdev --getsize /dev/mapper/"${myfn_enc}")"

@@ -37,12 +37,12 @@
 #
 # dir_hierarchy
 #   root_of_the_boot_driver/
-#       boot/                           # for BIOS boot
+#       boot/                               # for BIOS boot
 #           syslinux/
 #               isolinux.bin
 #               ldlinux.c32
 #               syslinux.cfg
-#       efi/                            # for UEFI boot
+#       efi/                                # for UEFI boot
 #           boot/
 #               bootx64.efi
 #               ldlinux.e64
@@ -50,8 +50,9 @@
 #       payload_0/
 #           vmlinuz
 #           initramfs.cpio.gz
-#           root_declassified.squashfs  # optional
-#           root.squashfs.luks          # optional
+#           root_hc.squashfs.luks           # optional
+#           root_lc.squashfs.luks           # optional
+#           root.squashfs.luks              # optional
 #
 #
 # references

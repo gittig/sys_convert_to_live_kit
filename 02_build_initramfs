@@ -232,6 +232,8 @@ func_build_cpio()
 
 func_main()
 {
+    echo "start $0"
+
     rm -rf "${dir_target}"
     mkdir -p "${dir_target}"
 

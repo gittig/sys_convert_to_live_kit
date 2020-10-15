@@ -36,8 +36,8 @@ func_partition_uefi()
     mydev="$1"
 
     sudo parted "${mydev}" mklabel gpt                          || exit 1
-    sudo parted "${mydev}" mkpart primary fat32 1MiB   110MiB   || exit 1
-    sudo parted "${mydev}" mkpart primary ext4  110MiB 100%     || exit 1
+    sudo parted "${mydev}" mkpart primary fat32 1MiB  70MiB     || exit 1
+    sudo parted "${mydev}" mkpart primary ext4  70MiB 100%      || exit 1
     sudo parted "${mydev}" set 1 boot on                        || exit 1
     sudo parted "${mydev}" print
 
@@ -91,12 +91,12 @@ func_build_boot()
         ;;
     2)
         myfn="../boot_hdd_uefi.fat32"
-        mysz=120
+        mysz=80
         myapp=func_partition_uefi
         ;;
     3)
         myfn="../boot_hdd_dual_bios_uefi.fat32"
-        mysz=120
+        mysz=80
         myapp=func_partition_dual_bios_uefi
         ;;
     *)

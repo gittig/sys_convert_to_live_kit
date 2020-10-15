@@ -16,6 +16,8 @@ dir_target=/tmp/"${this_link}".d
 
 func_main()
 {
+    echo "start $0"
+
     func_check_file_general_exist /vmlinuz
 
     rm -rf   "${dir_target}"

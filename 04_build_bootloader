@@ -32,7 +32,8 @@ func_syslinux_config()
     args_kernel="${args_kernel} printk.time=0"
     args_kernel="${args_kernel} apparmor=0"
     args_kernel="${args_kernel} rw"                                 # mount root device read-write on boot
-    args_kernel="${args_kernel} net.ifnames=0 biosdevname=0"        # change the defualt NIC name from "enp4s0"-alike to eth0
+    args_kernel="${args_kernel} net.ifnames=0 biosdevname=0"        # change the default NIC name from "enp4s0"-alike to eth0
+#   args_kernel="${args_kernel} ipv6.disable=1
 #   args_kernel="${args_kernel} debug"
 #   args_kernel="${args_kernel} myflag0=1"
 #   args_kernel="${args_kernel} myflag1=1"
@@ -46,9 +47,9 @@ func_syslinux_config()
 #   fi
 
     cat << EOF
-SAY *** press Tab to show labels ***
+SAY *** press Tab to show labels    ***
 PROMPT      1
-DEFAULT     auto_luks_toram
+DEFAULT     manual
 TIMEOUT     50
 
 LABEL manual
@@ -58,18 +59,6 @@ LABEL manual
 LABEL auto
     KERNEL  /payload_0/vmlinuz
     APPEND  initrd=/payload_0/initramfs.cpio.gz ${args_kernel} myflag_auto=1
-
-LABEL auto_toram
-    KERNEL  /payload_0/vmlinuz
-    APPEND  initrd=/payload_0/initramfs.cpio.gz ${args_kernel} myflag_auto_toram=1
-
-LABEL auto_luks
-    KERNEL  /payload_0/vmlinuz
-    APPEND  initrd=/payload_0/initramfs.cpio.gz ${args_kernel} myflag_auto_luks=1
-
-LABEL auto_luks_toram
-    KERNEL  /payload_0/vmlinuz
-    APPEND  initrd=/payload_0/initramfs.cpio.gz ${args_kernel} myflag_auto_luks_toram=1
 
 #LABEL l0
 #    KERNEL  /payload_0/vmlinuz
@@ -137,16 +126,20 @@ func_build_bootloader()
         /tmp/syslinux/memdisk           \
         "${dir_target}"/payload_misc/   \
         ;
-    func_syslinux_config > "${dir_target}"/boot/syslinux/syslinux.cfg
-    func_syslinux_config > "${dir_target}"/efi/boot/syslinux.cfg
     (
     cd "${dir_target}"/efi/boot/ || exit 1
     mv syslinux.efi bootx64.efi
     )
+    echo "SAY *** booted from /boot/syslinux/ ***" >> "${dir_target}"/boot/syslinux/syslinux.cfg
+    func_syslinux_config                           >> "${dir_target}"/boot/syslinux/syslinux.cfg
+    echo "SAY *** booted from /efi/boot/      ***" >> "${dir_target}"/efi/boot/syslinux.cfg
+    func_syslinux_config                           >> "${dir_target}"/efi/boot/syslinux.cfg
 }
 
 func_main()
 {
+    echo "start $0"
+
     func_build_bootloader
 
     echo "done $0"

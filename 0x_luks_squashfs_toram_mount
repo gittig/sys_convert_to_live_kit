@@ -2,22 +2,27 @@
 
 # do not set "-e" flag
 
+func_check_file_general_exist()
+{
+    if [ ! -e "$1" ]; then
+        echo "file $1 not found. exit."
+        exit 1
+    fi
+}
+
 this_abs_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "${this_abs_dir}" || exit 1
 
 mymount="/m1"
 mylayer0="${mymount}"/layer0_squashfs
-myfn1="./root.squashfs.luks"
-myfn1_enc="$(basename "${myfn}")_enc"
 myfn2="${mymount}"/root.squashfs
 
 
 func_main()
 {
-    if [ ! -f "${myfn1}" ]; then
-        echo "${myfn1} not found. exit."
-        exit 1
-    fi
+    myfn1="$1"
+    myfn1_enc="$(basename "${myfn}")_enc"
+    func_check_file_general_exist "${myfn1}"
 
     cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
     dd if=/dev/mapper/"${myfn1_enc}" of="${myfn2}"  || exit 1   # "status=progress" is not available in busybox dd

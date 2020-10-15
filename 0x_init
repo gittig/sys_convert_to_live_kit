@@ -75,29 +75,24 @@ func_prompt()
 {
     echo ""
     cat << EOF
-# option: auto, mount in place
-    * run "exec /init auto"
+# options
+#   run "exec /init auto_lc_luks"
 
-# option: auto, copy to RAM
-    * run "exec /init auto_toram"
+#   run "exec /init auto_lc_luks_toram"
 
-# option: auto, mount in place, with luks encryption
-    * run "exec /init auto_luks"
+#   run "exec /init auto_hc_luks"
 
-# option: auto, copy to RAM, with luks encryption
-    * run "exec /init auto_luks_toram"
+#   run "exec /init auto_hc_luks_toram"
 
-# option: manual, mount in place
-    * mount the storage (useful commands: "mdev -s" "blkid")
-    * mount root data to "${mylayer0}"/
-    * run "exec /init manual"
+#   mount the storage (useful commands: "mdev -s" "blkid")
+#   mount root data to "${mylayer0}"/
+#   run "exec /init manual"
 
-# option: manual, copy to RAM
-    * mount the storage (useful commands: "mdev -s" "blkid")
-    * copy root data to  "${mymount}"/
-    * mount root data to "${mylayer0}"/
-    * unmount the storage
-    * run "exec /init manual"
+#   mount the storage (useful commands: "mdev -s" "blkid")
+#   copy root data to  "${mymount}"/
+#   mount root data to "${mylayer0}"/
+#   unmount the storage
+#   run "exec /init manual"
 EOF
     echo ""
 }
@@ -106,6 +101,10 @@ EOF
 func_load_root()
 {
     myarg="$1"
+#   myarg_classified="$2"       # 0: lc,           1: hc
+#   myarg_luks="$3"             # 0: luks off,     1: luks on
+#   myarg_toram="$4"            # 0: not to RAM,   1: to RAM
+
     func_dir
 
     if [ "${myarg}" = "manual" ]; then
@@ -122,25 +121,25 @@ func_load_root()
         fi
 
         case "${myarg}" in
-        auto)
-            myfn1="/mnt/payload_0/root_declassified.squashfs"
-            if [ -f "${myfn1}" ]; then
-                mount "${myfn1}" "${mylayer0}"/                 || exit 1
-                return 0
-            fi
-            ;;
-        auto_toram)
-            myfn1="/mnt/payload_0/root_declassified.squashfs"
-            myfn2="${mymount}"/root_declassified.squashfs
-            if [ -f "${myfn1}" ]; then
-                cp "${myfn1}" "${myfn2}"                        || exit 1
-                umount /mnt/                                    || exit 1
-                mount "${myfn2}" "${mylayer0}"/                 || exit 1
-                return 0
-            fi
-            ;;
-        auto_luks)
-            myfn1="/mnt/payload_0/root.squashfs.luks"
+#       auto_lc)
+#           myfn1="/mnt/payload_0/root_lc.squashfs"
+#           if [ -f "${myfn1}" ]; then
+#               mount "${myfn1}" "${mylayer0}"/                 || exit 1
+#               return 0
+#           fi
+#           ;;
+#       auto_lc_toram)
+#           myfn1="/mnt/payload_0/root_lc.squashfs"
+#           myfn2="${mymount}"/root_lc.squashfs
+#           if [ -f "${myfn1}" ]; then
+#               cp "${myfn1}" "${myfn2}"                        || exit 1
+#               umount /mnt/                                    || exit 1
+#               mount "${myfn2}" "${mylayer0}"/                 || exit 1
+#               return 0
+#           fi
+#           ;;
+        auto_lc_luks)
+            myfn1="/mnt/payload_0/root_lc.squashfs.luks"
             myfn1_enc="$(basename "${myfn1}")_enc"
             if [ -f "${myfn1}" ]; then
                 cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
@@ -148,8 +147,30 @@ func_load_root()
                 return 0
             fi
             ;;
-        auto_luks_toram)
-            myfn1="/mnt/payload_0/root.squashfs.luks"
+        auto_lc_luks_toram)
+            myfn1="/mnt/payload_0/root_lc.squashfs.luks"
+            myfn1_enc="$(basename "${myfn1}")_enc"
+            myfn2="${mymount}"/root.squashfs
+            if [ -f "${myfn1}" ]; then
+                cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
+                dd if=/dev/mapper/"${myfn1_enc}" of="${myfn2}"  || exit 1
+                cryptsetup close "${myfn1_enc}"                 || exit 1
+                umount /mnt/                                    || exit 1
+                mount "${myfn2}" "${mylayer0}"                  || exit 1
+                return 0
+            fi
+            ;;
+        auto_hc_luks)
+            myfn1="/mnt/payload_0/root_hc.squashfs.luks"
+            myfn1_enc="$(basename "${myfn1}")_enc"
+            if [ -f "${myfn1}" ]; then
+                cryptsetup open "${myfn1}" "${myfn1_enc}"       || exit 1
+                mount /dev/mapper/"${myfn1_enc}" "${mylayer0}"  || exit 1
+                return 0
+            fi
+            ;;
+        auto_hc_luks_toram)
+            myfn1="/mnt/payload_0/root_hc.squashfs.luks"
             myfn1_enc="$(basename "${myfn1}")_enc"
             myfn2="${mymount}"/root.squashfs
             if [ -f "${myfn1}" ]; then
@@ -172,7 +193,7 @@ func_load_root()
     done
 
     echo "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
-    echo "failed to find data."
+    echo "failed to locate root data ${myfn1}"
     exec sh
 }
 
@@ -225,11 +246,8 @@ EOF
 
 func_parse_cmdline()
 {
-    cat "$1" | grep "\<myflag_auto=1\>"            > /dev/null && echo "auto"            && return 0
-    cat "$1" | grep "\<myflag_auto_toram=1\>"      > /dev/null && echo "auto_toram"      && return 0
-    cat "$1" | grep "\<myflag_auto_luks=1\>"       > /dev/null && echo "auto_luks"       && return 0
-    cat "$1" | grep "\<myflag_auto_luks_toram=1\>" > /dev/null && echo "auto_luks_toram" && return 0
-                                                                  echo "manual"          && return 0
+    cat "$1" | grep "\<myflag_auto=1\>"            > /dev/null && echo "auto_hc_luks_toram" && return 0
+                                                                  echo "manual"             && return 0
 }
 
 func_main()
@@ -241,8 +259,8 @@ func_main()
         func_load_root "$(func_parse_cmdline /boot_cmdline)"
     else                                        # 2nd stage, for manual workflow
         case "$1" in
-        auto|auto_toram|auto_luks|auto_luks_toram)
-            func_load_root "$1"
+        auto*)
+            func_load_root "$@"
             ;;
         manual)
             :

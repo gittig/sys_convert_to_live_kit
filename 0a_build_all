@@ -18,6 +18,8 @@ dir_target=/tmp/"${this_link}".d
 
 func_main()
 {
+    echo "start $0"
+
     func_check_file_general_exist ./00_prepare
     func_check_file_general_exist ./01_build_kernel
     func_check_file_general_exist ./02_build_initramfs
@@ -33,7 +35,7 @@ func_main()
 
     func_check_file_general_exist /tmp/01_build_kernel.d/vmlinuz
     func_check_file_general_exist /tmp/02_build_initramfs.d/initramfs.cpio.gz
-#   func_check_file_general_exist /tmp/03_build_root.d/root.squashfs
+#   func_check_file_general_exist /tmp/03_build_root.d/root.squashfs.luks
     func_check_file_general_exist /tmp/04_build_bootloader.d
 
     rm -rf   "${dir_target}"

@@ -23,16 +23,12 @@ dir_target=/tmp/"${this_link}".d
 func_build_root()
 {
     myfn="${dir_target}/root.squashfs"
-    sudo rm "${myfn}"
+    if [ -e "${myfn}" ]; then
+        sudo rm "${myfn}"
+    fi
     sudo mksquashfs                 \
         /bin /sbin /lib* /usr /etc /var /opt /root /home \
         "${myfn}"                   \
-                                    \
-        -e ~/mnt                    \
-        -e ~/ramfs                  \
-        -e ~/.local/share/ranger    \
-        -e ~/.local/share/zathura   \
-                                    \
         -b 1024K                    \
         -always-use-fragments       \
         -keep-as-directory          \
@@ -41,6 +37,8 @@ func_build_root()
 
 func_main()
 {
+    echo "start $0"
+
     rm -rf   "${dir_target}"
     mkdir -p "${dir_target}"
 
